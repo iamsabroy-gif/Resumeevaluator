@@ -56,6 +56,10 @@ export interface JobDescription {
   rawText: string;
   title: string;
   pastedAt: string;
+  /** Set only when the JD was fetched from a URL rather than pasted. */
+  sourceUrl?: string;
+  /** Distinguishes how the JD was supplied. Absent on legacy rows (treated as "paste"). */
+  sourceType?: "paste" | "url";
 }
 
 export interface SkillBankRecord {

@@ -26,6 +26,12 @@ const state = {
   busy: false,
   // per-card UI state, keyed by suggestion id: { responding: bool, draftText: string|null }
   cardUi: {},
+  // JD input mode
+  jdMode: "paste",      // "paste" | "url"
+  jdUrl: "",            // preserved across re-renders
+  jdText: "",           // preserved across re-renders
+  jdFetching: false,
+  jdFetchError: null,   // inline error string, separate from global state.error
 };
 
 const app = document.getElementById("app");
@@ -162,9 +168,37 @@ function renderUploadScreen() {
       </div>
       <div class="panel">
         <h2>Job description <span class="hint">(optional — scoring works without one)</span></h2>
-        <div class="field">
-          <textarea id="jd-text" placeholder="Paste the job description here"></textarea>
+        <div class="tabs" role="tablist">
+          <button class="tab-btn${state.jdMode === "paste" ? " active" : ""}" id="jd-tab-paste" data-jd-mode="paste" role="tab" aria-selected="${state.jdMode === "paste"}">Paste JD</button>
+          <button class="tab-btn${state.jdMode === "url" ? " active" : ""}" id="jd-tab-url" data-jd-mode="url" role="tab" aria-selected="${state.jdMode === "url"}">JD from URL</button>
         </div>
+
+        ${state.jdMode === "paste" ? `
+        <div class="field" id="jd-paste-panel">
+          <textarea id="jd-text" placeholder="Paste the job description here">${esc(state.jdText)}</textarea>
+        </div>
+        ` : `
+        <div id="jd-url-panel">
+          <div class="field">
+            <label for="jd-url">Job posting URL</label>
+            <input type="url" id="jd-url" placeholder="https://..." value="${esc(state.jdUrl)}" />
+          </div>
+          <div class="row" style="margin-bottom:10px">
+            <button id="fetch-jd-btn" class="secondary" ${state.jdFetching ? "disabled" : ""}>${state.jdFetching ? "Fetching…" : "Fetch job description"}</button>
+          </div>
+          <p class="hint jd-public-hint">Works with publicly viewable job postings. Pages that require you to be logged in (e.g. gated LinkedIn posts, internal portals) can't be fetched — paste the description instead.</p>
+          ${state.jdFetchError ? `
+          <div class="jd-fetch-error" role="alert">
+            ${esc(state.jdFetchError)}
+            <br><a href="#" id="jd-paste-fallback-link" style="color:inherit;text-decoration:underline">Paste the job description manually instead</a>
+          </div>` : ""}
+          ${state.jdText ? `
+          <div class="field" style="margin-top:10px">
+            <label for="jd-preview">Fetched text <span class="hint">(review and edit before scoring)</span></label>
+            <textarea id="jd-preview" rows="8">${esc(state.jdText)}</textarea>
+          </div>` : ""}
+        </div>
+        `}
       </div>
       <div class="row">
         <button id="submit-btn" ${state.busy ? "disabled" : ""}>${state.busy ? "Scoring..." : "Score my resume"}</button>
@@ -172,19 +206,82 @@ function renderUploadScreen() {
     </div>
   `);
 
+  // Tab switching — save current textarea value into state before re-rendering
+  wrap.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = btn.getAttribute("data-jd-mode");
+      if (mode === state.jdMode) return;
+      // Persist current input before the re-render wipes the DOM
+      if (state.jdMode === "paste") {
+        state.jdText = document.getElementById("jd-text")?.value ?? state.jdText;
+      } else {
+        state.jdUrl = document.getElementById("jd-url")?.value ?? state.jdUrl;
+        state.jdText = document.getElementById("jd-preview")?.value ?? state.jdText;
+      }
+      setState({ jdMode: mode, jdFetchError: null });
+    });
+  });
+
+  // Fetch button
+  const fetchBtn = wrap.querySelector("#fetch-jd-btn");
+  if (fetchBtn) {
+    fetchBtn.addEventListener("click", () => {
+      const url = (document.getElementById("jd-url")?.value ?? "").trim();
+      state.jdUrl = url;
+      fetchJdFromUrl(url);
+    });
+  }
+
+  // Inline fallback link: switch to paste mode
+  const fallbackLink = wrap.querySelector("#jd-paste-fallback-link");
+  if (fallbackLink) {
+    fallbackLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      state.jdText = document.getElementById("jd-preview")?.value ?? state.jdText;
+      setState({ jdMode: "paste", jdFetchError: null });
+      setTimeout(() => document.getElementById("jd-text")?.focus(), 0);
+    });
+  }
+
   wrap.querySelector("#submit-btn").addEventListener("click", () => {
     // Read every form value before guarded() flips busy:true — that triggers
     // a re-render which rebuilds the DOM from state and would otherwise wipe
     // whatever the user typed out from under this same click handler.
     const file = document.getElementById("resume-file").files[0] || null;
     const pastedResume = document.getElementById("resume-text").value.trim();
-    const jdText = document.getElementById("jd-text").value.trim();
-    guarded(() => submitResume({ file, pastedResume, jdText }));
+    if (state.jdMode === "paste") {
+      state.jdText = document.getElementById("jd-text")?.value ?? state.jdText;
+    } else {
+      state.jdUrl = document.getElementById("jd-url")?.value ?? state.jdUrl;
+      // Capture any edits the user made to the preview
+      const preview = document.getElementById("jd-preview");
+      if (preview) state.jdText = preview.value;
+    }
+    guarded(() => submitResume({ file, pastedResume }));
   });
   return wrap;
 }
 
-async function submitResume({ file, pastedResume, jdText }) {
+/** Fetch a JD from URL — sets jdFetchError inline (not global error banner). */
+async function fetchJdFromUrl(url) {
+  if (!url) {
+    setState({ jdFetchError: "Please enter a URL first." });
+    return;
+  }
+  setState({ jdFetching: true, jdFetchError: null });
+  try {
+    const jd = await api("/job-descriptions", {
+      method: "POST",
+      body: JSON.stringify({ sourceUrl: url, userId: state.userId }),
+    });
+    setState({ jd, jdText: jd.rawText, jdFetching: false, jdFetchError: null });
+  } catch (err) {
+    const msg = err.message || String(err);
+    setState({ jdFetching: false, jdFetchError: msg });
+  }
+}
+
+async function submitResume({ file, pastedResume }) {
   if (!file && !pastedResume) {
     throw new Error("Upload a resume file or paste resume text first.");
   }
@@ -203,10 +300,25 @@ async function submitResume({ file, pastedResume, jdText }) {
   }
 
   let jd = null;
-  if (jdText) {
+  const effectiveJdText = state.jdText.trim();
+
+  if (state.jdMode === "url" && state.jd && effectiveJdText) {
+    // If the user fetched a JD and the preview text still matches what was
+    // fetched, reuse the already-created JD row — no duplicate POST.
+    if (effectiveJdText === state.jd.rawText.trim()) {
+      jd = state.jd;
+    } else {
+      // User edited the preview — post the edited text as a fresh paste JD
+      jd = await api("/job-descriptions", {
+        method: "POST",
+        body: JSON.stringify({ rawText: effectiveJdText, userId: state.userId }),
+      });
+    }
+  } else if (effectiveJdText) {
+    // Paste mode (or URL mode without a successful fetch)
     jd = await api("/job-descriptions", {
       method: "POST",
-      body: JSON.stringify({ rawText: jdText, userId: state.userId }),
+      body: JSON.stringify({ rawText: effectiveJdText, userId: state.userId }),
     });
   }
 
@@ -277,11 +389,12 @@ function renderScoreScreen() {
           .map(([key, label]) => {
             const value = score[key];
             const pct = Math.round(value * 100);
+            const wt = Math.round(SIGNAL_WEIGHTS[key] * 100);
             return `
               <div class="bar-row">
-                <div>${esc(label)} <span class="hint">(${Math.round(SIGNAL_WEIGHTS[key] * 100)}%)</span></div>
+                <div>${esc(label)} <span class="hint" title="Weight of this category in the overall score">wt ${wt}%</span></div>
                 <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
-                <div class="bar-value">${pct}%</div>
+                <div class="bar-value" title="Score: ${pct} of 100">${pct}%</div>
               </div>`;
           })
           .join("")}
@@ -351,6 +464,16 @@ async function loadSuggestions() {
 // --------------------------------------------------- screen: suggestions
 
 const GAP_TYPE_LABELS = { skill: "Missing skill", metric: "Needs a number", governance: "Formatting", phrasing: "Phrasing" };
+const GAP_QUESTIONS = {
+  skill: "Have you actually done this?",
+  metric: "Do you know the real number for this?",
+  governance: "Does this apply to your experience?",
+  phrasing: "Does this describe work you actually did?",
+};
+const RESPONSE_LABELS = {
+  yes: "What did you do? In your own words.",
+  partial: "Describe the part you have done.",
+};
 
 function renderSuggestionsScreen() {
   const wrap = el(`<div></div>`);
@@ -407,16 +530,20 @@ function renderSuggestionCard(s) {
   card.appendChild(head);
 
   if (s.status === "suggested") {
+    const question = GAP_QUESTIONS[s.gapType] || "Do you have this experience?";
     const responder = el(`
       <div>
-        <div class="confidence-buttons">
-          <button data-level="yes">Yes, I have this</button>
-          <button data-level="partial">Partial / adjacent</button>
-          <button data-level="no">No</button>
+        <p class="confidence-question" id="q-${s.id}">${esc(question)}</p>
+        <div class="confidence-buttons" role="group" aria-labelledby="q-${s.id}">
+          <button data-level="yes" aria-pressed="${ui.level === "yes"}" class="${ui.level === "yes" ? "is-selected" : ""}" ${state.busy ? "disabled" : ""}>Yes — I've done this</button>
+          <button data-level="partial" aria-pressed="${ui.level === "partial"}" class="${ui.level === "partial" ? "is-selected" : ""}" ${state.busy ? "disabled" : ""}>Some of it</button>
+        </div>
+        <div class="confidence-buttons confidence-skip">
+          <button data-level="no" ${state.busy ? "disabled" : ""}>No — skip this gap</button>
         </div>
         ${
           ui.responding
-            ? `<div class="field"><label>Describe it in your own words</label><textarea id="input-${s.id}" placeholder="What did you actually do? Be specific — this is the only source of fact for the draft."></textarea></div>
+            ? `<div class="field"><label>${esc(RESPONSE_LABELS[ui.level] || "Describe it in your own words")}</label><textarea id="input-${s.id}" placeholder="What did you actually do? Be specific — this is the only source of fact for the draft."></textarea></div>
                <button data-action="submit-response">Submit</button>`
             : ""
         }
@@ -433,6 +560,9 @@ function renderSuggestionCard(s) {
         }
       });
     });
+    if (ui.responding) {
+      queueMicrotask(() => document.getElementById(`input-${s.id}`)?.focus());
+    }
     const submitBtn = responder.querySelector('[data-action="submit-response"]');
     if (submitBtn) {
       submitBtn.addEventListener("click", () => {
@@ -619,6 +749,11 @@ function renderDraftScreen() {
       draft: null,
       rescore: null,
       cardUi: {},
+      jdMode: "paste",
+      jdUrl: "",
+      jdText: "",
+      jdFetching: false,
+      jdFetchError: null,
     })
   );
   wrap.appendChild(actions);

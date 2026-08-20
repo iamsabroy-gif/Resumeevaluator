@@ -56,7 +56,7 @@ h3 { font-size: 15px; margin: 0 0 8px; }
 
 .field { margin-bottom: 16px; }
 .field label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 6px; }
-textarea, input[type="text"] {
+textarea, input[type="text"], input[type="url"] {
   width: 100%;
   background: var(--panel-2);
   border: 1px solid var(--border);
@@ -67,6 +67,37 @@ textarea, input[type="text"] {
   resize: vertical;
 }
 textarea { min-height: 120px; }
+input[type="url"] { resize: none; }
+
+/* JD mode tabs */
+.tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.tab-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.tab-btn:hover { color: var(--text); border-color: var(--accent); }
+.tab-btn.active { color: var(--text); border-color: var(--accent); background: rgba(110,168,254,0.12); }
+
+/* Inline JD fetch error — scoped amber warning, not a full error-banner */
+.jd-fetch-error {
+  background: rgba(224,169,64,0.10);
+  border: 1px solid var(--warn);
+  color: var(--warn);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.jd-public-hint { margin-bottom: 10px; }
 
 input[type="file"] {
   display: block;
@@ -133,7 +164,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .score-meta div { margin-bottom: 2px; }
 
 .bars { margin-top: 16px; }
-.bar-row { display: grid; grid-template-columns: 140px 1fr 48px; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+.bar-row { display: grid; grid-template-columns: 165px 1fr 48px; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
 .bar-track { background: var(--panel-2); border-radius: 6px; height: 10px; overflow: hidden; }
 .bar-fill { height: 100%; background: var(--accent); border-radius: 6px; }
 .bar-value { text-align: right; color: var(--text-dim); }
@@ -191,11 +222,14 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .card-status.declined { color: var(--text-dim); text-decoration: line-through; }
 .card-status.drafted, .card-status.edited { color: var(--accent); border-color: var(--accent); }
 
-.confidence-buttons { display: flex; gap: 8px; margin: 10px 0; }
+.confidence-question { font-weight: 600; margin: 10px 0 6px; }
+.confidence-buttons { display: flex; gap: 8px; margin: 0 0 8px; }
 .confidence-buttons button { flex: 1; }
 .confidence-buttons button[data-level="yes"] { background: var(--good); color: #06210f; }
 .confidence-buttons button[data-level="partial"] { background: var(--warn); color: #241800; }
-.confidence-buttons button[data-level="no"] { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.confidence-buttons button[data-level].is-selected { outline: 2px solid var(--text); outline-offset: 2px; }
+.confidence-skip { margin-top: 4px; }
+.confidence-skip button[data-level="no"] { flex: none; background: transparent; border: 1px solid var(--border); color: var(--text-dim); }
 
 .draft-box {
   background: var(--panel-2);

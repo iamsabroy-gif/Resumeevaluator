@@ -10,8 +10,10 @@ import { Router } from "express";
 import multer from "multer";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { z } from "zod";
 
 import { newId, nowIso } from "../domain/ids.js";
+import { fetchJobDescription } from "../ingestion/fetchJobDescription.js";
 import type { JobDescription, Resume } from "../domain/types.js";
 import {
   bullets as bulletRepo,
@@ -67,6 +69,32 @@ class BadRequestError extends Error {
 }
 
 export const router = Router();
+
+// ------------------------------------------------ per-IP rate limiter (JD fetch)
+
+interface RateBucket {
+  count: number;
+  resetAt: number;
+}
+
+const JD_FETCH_LIMIT = 10;
+const JD_FETCH_WINDOW_MS = 60_000;
+const rateBuckets = new Map<string, RateBucket>();
+
+function checkJdFetchRate(ip: string): void {
+  const now = Date.now();
+  const bucket = rateBuckets.get(ip);
+  if (!bucket || now >= bucket.resetAt) {
+    rateBuckets.set(ip, { count: 1, resetAt: now + JD_FETCH_WINDOW_MS });
+    return;
+  }
+  bucket.count++;
+  if (bucket.count > JD_FETCH_LIMIT) {
+    throw new BadRequestError(
+      `Too many job description fetch requests. Please wait a minute and try again.`
+    );
+  }
+}
 
 // ------------------------------------------------------------------ config
 
@@ -193,18 +221,62 @@ router.get(
 
 // -------------------------------------------------------- job descriptions
 
+const jdBodySchema = z.union([
+  z.object({
+    rawText: z.string().min(1, "A job description cannot be empty."),
+    sourceUrl: z.string().optional(),
+    userId: z.string().optional(),
+  }),
+  z.object({
+    sourceUrl: z.string().url("sourceUrl must be a valid URL."),
+    rawText: z.string().optional(),
+    userId: z.string().optional(),
+  }),
+]);
+
 router.post(
   "/job-descriptions",
   wrap(async (req, res) => {
-    const rawText = String(req.body?.rawText ?? "").trim();
-    if (!rawText) throw new BadRequestError("A job description cannot be empty.");
-    const firstLine = rawText.split("\n").find((l: string) => l.trim())?.trim() ?? "";
+    const parsed = jdBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new BadRequestError(parsed.error.issues[0]?.message ?? "Invalid request body.");
+    }
+    const body = parsed.data;
+    const userId = body.userId || "local-user";
+
+    let rawText: string;
+    let title: string;
+    let sourceUrl: string | undefined;
+    let sourceType: "paste" | "url";
+
+    // rawText wins when both are supplied (explicit paste takes precedence)
+    if (body.rawText && body.rawText.trim()) {
+      rawText = body.rawText.trim();
+      const firstLine = rawText.split("\n").find((l: string) => l.trim())?.trim() ?? "";
+      title = firstLine.slice(0, 140);
+      sourceType = "paste";
+    } else if (body.sourceUrl) {
+      const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0].trim()
+        ?? req.socket.remoteAddress
+        ?? "unknown";
+      checkJdFetchRate(ip);
+
+      const fetched = await fetchJobDescription(body.sourceUrl);
+      rawText = fetched.text;
+      title = fetched.title;
+      sourceUrl = fetched.finalUrl;
+      sourceType = "url";
+    } else {
+      throw new BadRequestError("Provide either rawText or sourceUrl.");
+    }
+
     const jd: JobDescription = {
       id: newId("jd"),
-      userId: req.body?.userId || "local-user",
+      userId,
       rawText,
-      title: firstLine.slice(0, 140),
+      title: title.slice(0, 140),
       pastedAt: nowIso(),
+      ...(sourceUrl ? { sourceUrl, sourceType } : { sourceType }),
     };
     await jobDescriptions.insert(jd);
     res.status(201).json(jd);
