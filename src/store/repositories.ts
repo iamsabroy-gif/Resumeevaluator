@@ -24,11 +24,16 @@ export type Collection<T extends Entity> = JsonCollection<T> | BlobCollection<T>
 
 /**
  * On Netlify the local filesystem is ephemeral, so persistence must go through
- * Netlify Blobs. `NETLIFY` is set automatically in the Netlify build/runtime;
- * `USE_NETLIFY_BLOBS` lets you force it locally (e.g. with `netlify dev`).
+ * Netlify Blobs. Detect the deployed runtime from several signals: `NETLIFY` is
+ * set at build time and often at runtime; the Blobs context and the AWS Lambda
+ * function name are present in the function runtime that actually serves
+ * requests. `USE_NETLIFY_BLOBS` forces it locally (e.g. with `netlify dev`).
  */
 const useBlobs =
-  process.env.USE_NETLIFY_BLOBS === "true" || Boolean(process.env.NETLIFY);
+  process.env.USE_NETLIFY_BLOBS === "true" ||
+  Boolean(process.env.NETLIFY) ||
+  Boolean(process.env.NETLIFY_BLOBS_CONTEXT) ||
+  Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
 
 function createCollection<T extends Entity>(name: string): Collection<T> {
   return useBlobs ? new BlobCollection<T>(name) : new JsonCollection<T>(name);

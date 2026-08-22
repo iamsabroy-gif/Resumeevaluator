@@ -4,7 +4,18 @@ import { fileURLToPath } from "node:url";
 
 import { router } from "./routes.js";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
+// `import.meta.url` is undefined once this is bundled into a CommonJS Netlify
+// function, so guard it. On Netlify the static assets are served by the CDN,
+// not by Express, so a best-effort publicDir is fine there.
+function moduleDir(): string {
+  try {
+    return path.dirname(fileURLToPath(import.meta.url));
+  } catch {
+    return process.cwd();
+  }
+}
+
+const here = moduleDir();
 const publicDir = path.resolve(here, "../../public");
 
 export function createApp() {
@@ -42,9 +53,15 @@ export function createApp() {
   return app;
 }
 
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+function runAsMain(): boolean {
+  try {
+    return Boolean(process.argv[1]) && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+  } catch {
+    return false;
+  }
+}
 
-if (isMain) {
+if (runAsMain()) {
   const port = Number(process.env.PORT ?? 3000);
   createApp().listen(port, () => {
     console.log(`Resume evaluator listening on http://localhost:${port}`);

@@ -48,12 +48,14 @@ import { getAiProvider } from "../ai/provider.js";
 import { getSemanticProvider } from "../scoring/semantic.js";
 import { EVIDENCE_GRADE } from "../engine/ats-scorer.js";
 
-// On Netlify the working directory is read-only; only the OS temp dir is
-// writable. The stored file is never read back (only its text is), so a
+// On a serverless runtime the working directory is read-only; only the OS temp
+// dir is writable. The stored file is never read back (only its text is), so a
 // non-durable temp location is fine there.
+const onServerless =
+  Boolean(process.env.NETLIFY) || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
 export const UPLOAD_DIR =
   process.env.RESUME_EVALUATOR_UPLOAD_DIR ??
-  (process.env.NETLIFY
+  (onServerless
     ? path.join(os.tmpdir(), "resume-evaluator-uploads")
     : path.resolve(process.cwd(), "uploads"));
 
