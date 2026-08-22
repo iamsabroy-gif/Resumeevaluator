@@ -21,6 +21,22 @@ import { NotFoundError } from "./jsonStore.js";
 
 const STORE_NAME = process.env.NETLIFY_BLOBS_STORE ?? "resume-evaluator";
 
+// When a Netlify API token (and site id) are provided, talk to the Netlify
+// Blobs API directly, which is strongly consistent — a read always reflects the
+// latest write. This is required because the app chains writes and reads across
+// separate function invocations (create resume → create JD → score) with no
+// human delay, and the edge context in the Lambda-compat runtime only offers
+// eventual consistency. Falls back to the auto-configured store otherwise.
+const BLOBS_TOKEN = process.env.NETLIFY_BLOBS_TOKEN;
+const BLOBS_SITE_ID = process.env.NETLIFY_BLOBS_SITE_ID ?? process.env.SITE_ID;
+
+function openStore(): Store {
+  if (BLOBS_TOKEN && BLOBS_SITE_ID) {
+    return getStore({ name: STORE_NAME, siteID: BLOBS_SITE_ID, token: BLOBS_TOKEN });
+  }
+  return getStore({ name: STORE_NAME });
+}
+
 export class BlobCollection<T extends Entity> {
   private storeInstance: Store | null = null;
   /** Serialises writes; every save appends to this chain. */
@@ -30,11 +46,7 @@ export class BlobCollection<T extends Entity> {
 
   private store(): Store {
     if (!this.storeInstance) {
-      // Note: strong consistency isn't available in the Lambda-compat runtime
-      // (no `uncachedEdgeURL`), so we use the default eventual consistency.
-      // Reads happen at human pace (upload, then score), well within the
-      // convergence window, and this store never caches between calls.
-      this.storeInstance = getStore({ name: STORE_NAME });
+      this.storeInstance = openStore();
     }
     return this.storeInstance;
   }
