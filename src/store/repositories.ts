@@ -3,7 +3,8 @@
  * this line talks to these repositories, never to the JSON store directly.
  */
 
-import { JsonCollection } from "./jsonStore.js";
+import { JsonCollection, type Entity } from "./jsonStore.js";
+import { BlobCollection } from "./blobStore.js";
 import type {
   Bullet,
   JobDescription,
@@ -14,13 +15,32 @@ import type {
   SkillBankRecord,
 } from "../domain/types.js";
 
-export const resumes = new JsonCollection<Resume>("resumes");
-export const bullets = new JsonCollection<Bullet>("bullets");
-export const jobDescriptions = new JsonCollection<JobDescription>("job_descriptions");
-export const skillBanks = new JsonCollection<SkillBankRecord>("skill_banks");
-export const scoreResults = new JsonCollection<ScoreResultRecord>("score_results");
-export const suggestions = new JsonCollection<ResumeSuggestion>("resume_suggestions");
-export const drafts = new JsonCollection<ResumeDraft>("resume_drafts");
+/**
+ * Structural type shared by both store implementations. Everything above this
+ * layer depends only on this interface, so the backing store can be chosen at
+ * runtime with no other change.
+ */
+export type Collection<T extends Entity> = JsonCollection<T> | BlobCollection<T>;
+
+/**
+ * On Netlify the local filesystem is ephemeral, so persistence must go through
+ * Netlify Blobs. `NETLIFY` is set automatically in the Netlify build/runtime;
+ * `USE_NETLIFY_BLOBS` lets you force it locally (e.g. with `netlify dev`).
+ */
+const useBlobs =
+  process.env.USE_NETLIFY_BLOBS === "true" || Boolean(process.env.NETLIFY);
+
+function createCollection<T extends Entity>(name: string): Collection<T> {
+  return useBlobs ? new BlobCollection<T>(name) : new JsonCollection<T>(name);
+}
+
+export const resumes = createCollection<Resume>("resumes");
+export const bullets = createCollection<Bullet>("bullets");
+export const jobDescriptions = createCollection<JobDescription>("job_descriptions");
+export const skillBanks = createCollection<SkillBankRecord>("skill_banks");
+export const scoreResults = createCollection<ScoreResultRecord>("score_results");
+export const suggestions = createCollection<ResumeSuggestion>("resume_suggestions");
+export const drafts = createCollection<ResumeDraft>("resume_drafts");
 
 export const collections = {
   resumes,

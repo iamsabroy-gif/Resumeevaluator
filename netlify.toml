@@ -1,0 +1,38 @@
+# Netlify deployment configuration for the Resume Evaluator.
+#
+# The frontend is a plain static SPA in `public/`. The Express backend runs as
+# a single serverless function (`netlify/functions/api.ts`) and persists data
+# to Netlify Blobs. Set ANTHROPIC_API_KEY in the Netlify site environment to
+# enable real AI drafting; without it the app falls back to the offline stub.
+
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+  # No frontend bundling step is needed; the static assets ship as-is.
+  command = "npm run build"
+
+[functions]
+  # Bundle TypeScript functions and their dependencies with esbuild.
+  node_bundler = "esbuild"
+  # The PDF parser spawns a worker thread from a standalone .mjs that is not
+  # traced by esbuild, so ship it and its runtime dependency explicitly and
+  # keep pdf-parse external (the worker `import`s it at runtime).
+  included_files = [
+    "src/ingestion/pdfWorker.mjs",
+    "node_modules/pdf-parse/**",
+    "node_modules/node-ensure/**",
+  ]
+  external_node_modules = ["pdf-parse"]
+
+# Send the API surface to the Express function, preserving the original path.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+# SPA fallback: any non-asset, non-API path serves the app shell so client-side
+# routing survives a hard refresh.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

@@ -24,6 +24,34 @@ stub that only ever reorders or re-verbs text it was given (see
 `src/ai/provider.ts`), so the full flow runs end to end with no credentials.
 To use real AI drafting, set `ANTHROPIC_API_KEY` (or run `ant auth login`).
 
+## Deploying to Netlify
+
+The app ships to Netlify as a static frontend (`public/`) plus one serverless
+function that runs the whole Express API (`netlify/functions/api.ts` wraps
+`createApp()` with `serverless-http`). Because Netlify's function filesystem is
+ephemeral and not shared between requests, persistence automatically switches
+from the local JSON files to **Netlify Blobs** whenever `NETLIFY` is set (see
+`src/store/repositories.ts`). No other code changes between local and deploy.
+
+Configuration lives in `netlify.toml`:
+
+- `/api/*` is redirected to the function (original path preserved), everything
+  else falls back to `index.html` for SPA routing.
+- The PDF worker (`src/ingestion/pdfWorker.mjs`) and `pdf-parse` are shipped via
+  `included_files` since esbuild can't trace a worker spawned by path.
+
+To deploy:
+
+1. Push this branch and connect the repo in the Netlify UI (or run
+   `netlify deploy` with the CLI). `netlify.toml` supplies build settings.
+2. In **Site settings → Environment variables**, set `ANTHROPIC_API_KEY` to
+   enable real AI drafting (optional — without it the offline stub is used).
+   See `.env.example` for the full list.
+3. Netlify Blobs is enabled automatically for the site; no setup needed.
+
+Locally you can emulate the deployed setup with `netlify dev` and
+`USE_NETLIFY_BLOBS=true`.
+
 ## Testing
 
 ```bash
@@ -40,7 +68,8 @@ shared assertion registry never leak between them.
 ```
 src/engine/ats-scorer.ts     the verified scoring engine, unmodified
 src/domain/                  entity types, id/timestamp helpers
-src/store/                   JSON-file persistence (swap for a real DB later)
+src/store/                   persistence: JSON files locally, Netlify Blobs on deploy
+netlify/functions/           the Express API wrapped as a Netlify function
 src/ingestion/                DOCX/PDF text extraction + bullet parsing
 src/scoring/                 skill banks, orchestration, semantic-layer hook
 src/suggestions/              gap-suggestion generation + the state machine

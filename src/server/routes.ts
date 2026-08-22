@@ -9,6 +9,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
 
@@ -47,8 +48,14 @@ import { getAiProvider } from "../ai/provider.js";
 import { getSemanticProvider } from "../scoring/semantic.js";
 import { EVIDENCE_GRADE } from "../engine/ats-scorer.js";
 
+// On Netlify the working directory is read-only; only the OS temp dir is
+// writable. The stored file is never read back (only its text is), so a
+// non-durable temp location is fine there.
 export const UPLOAD_DIR =
-  process.env.RESUME_EVALUATOR_UPLOAD_DIR ?? path.resolve(process.cwd(), "uploads");
+  process.env.RESUME_EVALUATOR_UPLOAD_DIR ??
+  (process.env.NETLIFY
+    ? path.join(os.tmpdir(), "resume-evaluator-uploads")
+    : path.resolve(process.cwd(), "uploads"));
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
