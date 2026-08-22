@@ -11,6 +11,7 @@
 
 import path from "node:path";
 
+import { connectLambda } from "@netlify/blobs";
 import serverless from "serverless-http";
 
 import { createApp } from "../../src/server/index.js";
@@ -28,4 +29,12 @@ process.env.PDF_WORKER_PATH ??= path.join(
   "pdfWorker.mjs"
 );
 
-export const handler = serverless(createApp());
+const serverlessHandler = serverless(createApp());
+
+// Lambda-compat functions (which serverless-http produces) receive the Netlify
+// Blobs context in the request event, not the environment, so wire it up per
+// invocation before the app touches the store.
+export const handler = (event: any, context: any) => {
+  connectLambda(event);
+  return serverlessHandler(event, context);
+};
