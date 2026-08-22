@@ -30,7 +30,11 @@ export class BlobCollection<T extends Entity> {
 
   private store(): Store {
     if (!this.storeInstance) {
-      this.storeInstance = getStore({ name: STORE_NAME, consistency: "strong" });
+      // Note: strong consistency isn't available in the Lambda-compat runtime
+      // (no `uncachedEdgeURL`), so we use the default eventual consistency.
+      // Reads happen at human pace (upload, then score), well within the
+      // convergence window, and this store never caches between calls.
+      this.storeInstance = getStore({ name: STORE_NAME });
     }
     return this.storeInstance;
   }
