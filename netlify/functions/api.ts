@@ -14,10 +14,13 @@ import { fileURLToPath } from "node:url";
 
 import serverless from "serverless-http";
 
+import { createApp } from "../../src/server/index.js";
+
 // The PDF parser runs in a worker thread loaded from a separate `.mjs` file.
 // After bundling, that file is shipped via `included_files` at its repo path
 // relative to the function root, so point the extractor at it explicitly.
-// Must be set before the app (and its worker) resolve the path.
+// `pdfWorkerPath()` reads this lazily (at parse time), so setting it here — even
+// after the imports run — is in effect long before any request is handled.
 process.env.PDF_WORKER_PATH ??= path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   "src",
@@ -25,8 +28,4 @@ process.env.PDF_WORKER_PATH ??= path.join(
   "pdfWorker.mjs"
 );
 
-const { createApp } = await import("../../src/server/index.js");
-
-const handler = serverless(createApp());
-
-export { handler };
+export const handler = serverless(createApp());

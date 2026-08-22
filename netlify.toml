@@ -11,6 +11,9 @@
   # No frontend bundling step is needed; the static assets ship as-is.
   command = "npm run build"
 
+[build.environment]
+  NODE_VERSION = "20"
+
 [functions]
   # Bundle TypeScript functions and their dependencies with esbuild.
   node_bundler = "esbuild"
