@@ -23,6 +23,7 @@ No API key is required — `AI_PROVIDER` defaults to a deterministic offline
 stub that only ever reorders or re-verbs text it was given (see
 `src/ai/provider.ts`), so the full flow runs end to end with no credentials.
 To use real AI drafting, set `ANTHROPIC_API_KEY` (or run `ant auth login`).
+To enable rich YouTube video tutorials for missing skill gaps, set `YOUTUBE_API_KEY` (Data API v3); otherwise it seamlessly falls back to YouTube search URLs.
 
 ## Deploying to Netlify
 

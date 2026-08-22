@@ -112,6 +112,13 @@ export interface ScoreResultRecord {
 
 export type GapType = "skill" | "metric" | "governance" | "phrasing";
 
+export interface StudyLink {
+  title: string;
+  url: string;
+  thumbnailUrl: string | null;
+  channelTitle: string;
+}
+
 export type SuggestionStatus =
   | "suggested"
   | "user_responded"
@@ -140,6 +147,10 @@ export interface ResumeSuggestion {
   unquantifiedGaps: string[];
   /** Populated when the code-side validation layer rejected an AI draft. */
   validationError: string | null;
+  /** Raw skill keyword (e.g. "Kafka"). Only set for gapType === "skill" cards. */
+  missingSkill: string | null;
+  /** YouTube study links, populated lazily via POST /suggestions/:id/study-links. */
+  studyLinks: StudyLink[] | null;
   createdAt: string;
   respondedAt: string | null;
 }

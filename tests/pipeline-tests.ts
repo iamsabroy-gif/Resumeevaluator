@@ -166,18 +166,16 @@ test("P4: garbled/binary-looking text drives the confidence signal down", () => 
 // src/ingestion/pdfWorker.mjs); this test would have caught the flakiness
 // the fix addresses, by calling extraction on the same buffer many times in
 // a row and requiring every single one to succeed identically.
-const SAMPLE_PDF_BASE64 =
-  "JVBERi0xLjMKJZOMi54gUmVwb3J0TGFiIEdlbmVyYXRlZCBQREYgZG9jdW1lbnQgKG9wZW5zb3VyY2UpCjEgMCBvYmoKPDwKL0YxIDIgMCBSCj4+CmVuZG9iagoyIDAgb2JqCjw8Ci9CYXNlRm9udCAvSGVsdmV0aWNhIC9FbmNvZGluZyAvV2luQW5zaUVuY29kaW5nIC9OYW1lIC9GMSAvU3VidHlwZSAvVHlwZTEgL1R5cGUgL0ZvbnQKPj4KZW5kb2JqCjMgMCBvYmoKPDwKL0NvbnRlbnRzIDcgMCBSIC9NZWRpYUJveCBbIDAgMCA2MTIgNzkyIF0gL1BhcmVudCA2IDAgUiAvUmVzb3VyY2VzIDw8Ci9Gb250IDEgMCBSIC9Qcm9jU2V0IFsgL1BERiAvVGV4dCAvSW1hZ2VCIC9JbWFnZUMgL0ltYWdlSSBdCj4+IC9Sb3RhdGUgMCAvVHJhbnMgPDwKCj4+IAogIC9UeXBlIC9QYWdlCj4+CmVuZG9iago0IDAgb2JqCjw8Ci9QYWdlTW9kZSAvVXNlTm9uZSAvUGFnZXMgNiAwIFIgL1R5cGUgL0NhdGFsb2cKPj4KZW5kb2JqCjUgMCBvYmoKPDwKL0F1dGhvciAoYW5vbnltb3VzKSAvQ3JlYXRpb25EYXRlIChEOjIwMjYwODIwMTMyMjMyKzAwJzAwJykgL0NyZWF0b3IgKGFub255bW91cykgL0tleXdvcmRzICgpIC9Nb2REYXRlIChEOjIwMjYwODIwMTMyMjMyKzAwJzAwJykgL1Byb2R1Y2VyIChSZXBvcnRMYWIgUERGIExpYnJhcnkgLSBcKG9wZW5zb3VyY2VcKSkgCiAgL1N1YmplY3QgKHVuc3BlY2lmaWVkKSAvVGl0bGUgKHVudGl0bGVkKSAvVHJhcHBlZCAvRmFsc2UKPj4KZW5kb2JqCjYgMCBvYmoKPDwKL0NvdW50IDEgL0tpZHMgWyAzIDAgUiBdIC9UeXBlIC9QYWdlcwo+PgplbmRvYmoKNyAwIG9iago8PAovRmlsdGVyIFsgL0FTQ0lJODVEZWNvZGUgL0ZsYXRlRGVjb2RlIF0gL0xlbmd0aCA3OTkKPj4Kc3RyZWFtCkdhdD1oOy9fcFgnU1lIQS8rMVRWREJdcjA4RWFRaUIlKz1qYXBNKD4qT25dMCQ/ZyROWy9CZiwiLSQ/YFktXVdVJ0c1X1FyTEohTTYtLFtzcyI1N0BBSDxsOzdoRVg5bGxcb3QjbyUvVydrZEcsKUlIZGdZWGgpLylFPks0XGU1WSxNIXEmNCQscVskP0IoMEplUWhNLlVYMDhzXEwzNjQiMVRtJEtNUDJeci84SS9uNnFNP04naXVKN1xgN2BdaEBLKFohNmVxSXVBUypcJ1xyR2BmUUBYTDpoQEFUZl4kSUhvVUZpUFJmL21eaUJERDhHNCk1NFtGaWkpcV9TdT0hW046T2cxQGBYaTFXQEIuUHFGOEFfNzFwSV4kRk0oXkBKZ0VjcypTTFJqXSRHPkc/bythKzUsZHBbOW08WFRyTycmRmJEbzQmKVpnSDhHKGhcOkE7LD9OVTo/YCFjNGc/JyUvSCc6WyhCX0puLHEwPCcnbCcxa3J1LFc1Ky51PGMoPG8tOjZlYE1mYSNnTyIjYzZOJDMoU0MpblBPQzk6YGlzVTswXiI6SV5OamohUVYyUXJnX0ZfKWEvKFBZRCNXcU0+KDEiMTFwPTRER2EnNkJFQlNkQ1x0QCs6b2InV25ZcnU8LGlMaSJfKDZXOmV1VUk9VTFjZ1pAIThRN0VHN01gNlMwal1ZJ0NVQDhbOVRtKlQpWiNSWDpmKV9wQz51OT0rY2tUck1HZCxUQU1LREklJ3Axa0AvLmg5UUsvUmVcYmcsdTk7TWdKcVJpViNERWs7alxnXjZmdHAhSFtUQV4yYkJYUGhKJE81PjM9PjgzW3BDQDNOQjRhIUdGZD1NM2RGXz4zcmRlPXVAb2lRWiYyZF9iNFRqWjpSMEFJQSIwIyIoNChnKjZvUzc+TXFySFhxWTRzU0FuIzldQFdGIj9PJXJkIUFtYmoyM3VZWTEhQkwkNSRKR2M8YE5BdDsjRGctMF1nSmw1MzVwYiVYYVc1WWE+PUUmM3QsWTNvR2VTLT5MSEMkc1gqSm1YcVJaKy8zYEopaEg4SV9afj5lbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA4CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDA2MSAwMDAwMCBuIAowMDAwMDAwMDkyIDAwMDAwIG4gCjAwMDAwMDAxOTkgMDAwMDAgbiAKMDAwMDAwMDM5MiAwMDAwMCBuIAowMDAwMDAwNDYwIDAwMDAwIG4gCjAwMDAwMDA3MjEgMDAwMDAgbiAKMDAwMDAwMDc4MCAwMDAwMCBuIAp0cmFpbGVyCjw8Ci9JRCAKWzw2YmUwMjkyMjBiYWUyNDA0MWIwNzI1NDg4MzNkYzkyYz48NmJlMDI5MjIwYmFlMjQwNDFiMDcyNTQ4ODMzZGM5MmM+XQolIFJlcG9ydExhYiBnZW5lcmF0ZWQgUERGIGRvY3VtZW50IC0tIGRpZ2VzdCAob3BlbnNvdXJjZSkKCi9JbmZvIDUgMCBSCi9Sb290IDQgMCBSCi9TaXplIDgKPj4Kc3RhcnR4cmVmCjE2NjkKJSVFT0YK";
-
 test("P4b: repeated PDF extraction on the same file succeeds every time (regression)", async () => {
-  const buf = Buffer.from(SAMPLE_PDF_BASE64, "base64");
+  const fixturePath = path.resolve(process.cwd(), "uploads", "res_31f55f1329824c1b90b2-Sabyasachi_Roy_Resume_v1.pdf");
+  const buf = await fs.readFile(fixturePath);
   const results = [];
   for (let i = 0; i < 6; i++) {
     results.push(await extractResumeTextFromBuffer(buf, "pdf"));
   }
   for (const [i, r] of results.entries()) {
     assertEqual(r.confidence, "high", `run ${i}: expected high confidence, got ${r.confidence} (${r.notes.join(" ")})`);
-    assertIncludes(r.rawText, "Jordan Lee", `run ${i}: expected the PDF's actual text`);
+    assertIncludes(r.rawText, "SABYASACHI ROY", `run ${i}: expected the PDF's actual text`);
   }
   const texts = new Set(results.map((r) => r.rawText));
   assertEqual(texts.size, 1, "every run must extract byte-identical text from the same file");

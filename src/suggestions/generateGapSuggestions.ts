@@ -63,7 +63,7 @@ function rankMissingSkills(missing: string[], jdText: string): string[] {
 
 function makeSuggestion(
   score: ScoreResultRecord,
-  fields: Partial<ResumeSuggestion> & { gapType: GapType; jdEvidence: string }
+  fields: Partial<ResumeSuggestion> & { gapType: GapType; jdEvidence: string; missingSkill?: string | null }
 ): ResumeSuggestion {
   return {
     id: newId("sug"),
@@ -80,6 +80,8 @@ function makeSuggestion(
     draftBullet: null,
     unquantifiedGaps: [],
     validationError: null,
+    missingSkill: fields.missingSkill ?? null,
+    studyLinks: null,
     createdAt: nowIso(),
     respondedAt: null,
   };
@@ -128,6 +130,7 @@ export async function generateGapSuggestions(
         gapType: "skill",
         checkId: "keyword_coverage",
         evidence: "b",
+        missingSkill: skill,
         jdEvidence: jd
           ? `The job description asks for "${skill}", which doesn't appear anywhere in your resume.`
           : `"${skill}" is a core skill for the ${score.domain} domain and doesn't appear in your resume.`,

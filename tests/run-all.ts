@@ -10,7 +10,13 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-const SUITES = ["acceptance-tests.ts", "evidence-weighting-tests.ts", "pipeline-tests.ts", "url-guard-tests.ts"];
+const SUITES = [
+  "acceptance-tests.ts",
+  "evidence-weighting-tests.ts",
+  "pipeline-tests.ts",
+  "url-guard-tests.ts",
+  "study-links-tests.ts",
+];
 
 let anyFailed = false;
 for (const suite of SUITES) {

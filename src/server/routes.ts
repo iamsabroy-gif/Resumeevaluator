@@ -47,6 +47,7 @@ import { buildDraft, rescoreDraft } from "../drafts/buildDraft.js";
 import { getAiProvider } from "../ai/provider.js";
 import { getSemanticProvider } from "../scoring/semantic.js";
 import { EVIDENCE_GRADE } from "../engine/ats-scorer.js";
+import { youtubeSearch } from "../learning/youtubeSearch.js";
 
 // On a serverless runtime the working directory is read-only; only the OS temp
 // dir is writable. The stored file is never read back (only its text is), so a
@@ -114,6 +115,7 @@ router.get(
       aiProvider: getAiProvider().name,
       semanticProvider: getSemanticProvider().name,
       evidenceGrades: EVIDENCE_GRADE,
+      studyLinksEnabled: Boolean(process.env.YOUTUBE_API_KEY),
       domains: SKILL_BANKS.map((b) => ({
         domain: b.domain,
         display_name: b.display_name,
@@ -384,6 +386,25 @@ router.post(
   "/suggestions/:id/decline",
   wrap(async (req, res) => {
     res.json(await declineSuggestion(req.params.id));
+  })
+);
+
+// POST /suggestions/:id/study-links — lazy YouTube study-link fetch (studylinksplan.md §5).
+// Only valid for skill-gap cards; 400 for any other gap type.
+router.post(
+  "/suggestions/:id/study-links",
+  wrap(async (req, res) => {
+    const suggestion = await suggestionRepo.get(req.params.id);
+    if (suggestion.gapType !== "skill") {
+      throw new BadRequestError(
+        "Study links are only available for skill gap cards (gapType must be \"skill\")."
+      );
+    }
+    const skill = suggestion.missingSkill ?? suggestion.jdEvidence;
+    const links = await youtubeSearch(skill);
+    // Persist onto the suggestion so re-renders don't re-fetch.
+    const updated = await suggestionRepo.update(req.params.id, { studyLinks: links });
+    res.json(updated);
   })
 );
 
