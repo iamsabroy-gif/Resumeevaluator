@@ -44,10 +44,22 @@ To deploy:
 
 1. Push this branch and connect the repo in the Netlify UI (or run
    `netlify deploy` with the CLI). `netlify.toml` supplies build settings.
-2. In **Site settings → Environment variables**, set `ANTHROPIC_API_KEY` to
-   enable real AI drafting (optional — without it the offline stub is used).
+2. In **Site settings → Environment variables**, set:
+   - `NETLIFY_BLOBS_TOKEN` — a Netlify personal access token, and
+     `NETLIFY_BLOBS_SITE_ID` — the site id. **Required.** The app chains
+     write-then-read across function invocations (create resume → create JD →
+     score), which the eventual-consistency edge context breaks; a token routes
+     Blobs through the strongly-consistent API so reads always see prior writes.
+   - `ANTHROPIC_API_KEY` — optional; enables real AI drafting (without it the
+     deterministic offline stub is used).
    See `.env.example` for the full list.
-3. Netlify Blobs is enabled automatically for the site; no setup needed.
+3. The persistence store itself (Netlify Blobs) is enabled automatically; only
+   the token above is needed to make it strongly consistent.
+
+Because the function wraps Express with `serverless-http` (a Lambda-compat
+handler), it calls `connectLambda(event)` per request to wire up the Blobs
+context, and resolves the PDF worker from `LAMBDA_TASK_ROOT` — see
+`netlify/functions/api.ts`.
 
 Locally you can emulate the deployed setup with `netlify dev` and
 `USE_NETLIFY_BLOBS=true`.
